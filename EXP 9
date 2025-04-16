@@ -1,0 +1,220 @@
+1. Hibernate Configuration (hibernate.cfg.xml)
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE hibernate-configuration PUBLIC
+      "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+      "http://hibernate.sourceforge.net/hibernate-configuration-3.0.dtd">
+<hibernate-configuration>
+    <session-factory>
+        <!-- Database connection settings -->
+        <property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
+        <property name="hibernate.connection.url">jdbc:mysql://localhost:3306/your_database?useSSL=false&amp;serverTimezone=UTC</property>
+        <property name="hibernate.connection.username">your_username</property>
+        <property name="hibernate.connection.password">your_password</property>
+
+        <!-- SQL dialect -->
+        <property name="hibernate.dialect">org.hibernate.dialect.MySQLDialect</property>
+
+        <!-- Echo all executed SQL to stdout -->
+        <property name="hibernate.show_sql">true</property>
+
+        <!-- Automatically drop and create the database schema on startup -->
+        <property name="hibernate.hbm2ddl.auto">update</property>
+
+        <!-- Mapping class -->
+        <mapping class="com.example.entity.Student"/>
+    </session-factory>
+</hibernate-configuration>
+
+2. The Student Entity Class (Student.java)
+package com.example.entity;
+
+import javax.persistence.*;
+
+@Entity
+@Table(name = "Student")
+public class Student {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int id;
+    
+    private String name;
+    private int age;
+    
+    // Constructors
+    public Student() {
+    }
+    
+    public Student(String name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+    
+    // Getters and Setters
+    public int getId() {
+        return id;
+    }
+    
+    public void setId(int id) {
+        this.id = id;
+    }
+    
+    public String getName() {
+        return name;
+    }
+    
+    public void setName(String name) {
+        this.name = name;
+    }
+    
+    public int getAge() {
+        return age;
+    }
+    
+    public void setAge(int age) {
+        this.age = age;
+    }
+    
+    @Override
+    public String toString() {
+        return "Student [id=" + id + ", name=" + name + ", age=" + age + "]";
+    }
+}
+
+3. Hibernate Utility Class (HibernateUtil.java)
+package com.example.util;
+
+import org.hibernate.SessionFactory;
+import org.hibernate.cfg.Configuration;
+import com.example.entity.Student;
+
+public class HibernateUtil {
+    private static final SessionFactory sessionFactory = buildSessionFactory();
+    
+    private static SessionFactory buildSessionFactory() {
+        try {
+            // Create the SessionFactory from hibernate.cfg.xml
+            Configuration configuration = new Configuration();
+            configuration.configure("hibernate.cfg.xml");
+            // Optionally add annotated classes explicitly
+            configuration.addAnnotatedClass(Student.class);
+            return configuration.buildSessionFactory();
+        } catch (Throwable ex) {
+            System.err.println("Initial SessionFactory creation failed." + ex);
+            throw new ExceptionInInitializerError(ex);
+        }
+    }
+    
+    public static SessionFactory getSessionFactory() {
+        return sessionFactory;
+    }
+    
+    public static void shutdown() {
+        // Close caches and connection pools
+        getSessionFactory().close();
+    }
+}
+
+
+4. CRUD Testing Class (StudentCRUD.java)
+package com.example.main;
+
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import com.example.entity.Student;
+import com.example.util.HibernateUtil;
+
+public class StudentCRUD {
+    public static void main(String[] args) {
+        // Create a new student (Create operation)
+        Student student = new Student("John Doe", 20);
+        int studentId = saveStudent(student);
+
+        // Read the student (Read operation)
+        Student studentFromDb = getStudent(studentId);
+        System.out.println("Retrieved: " + studentFromDb);
+
+        // Update the student (Update operation)
+        studentFromDb.setName("John Updated");
+        updateStudent(studentFromDb);
+
+        // Verify update
+        Student updatedStudent = getStudent(studentId);
+        System.out.println("Updated: " + updatedStudent);
+
+        // Delete the student (Delete operation)
+        deleteStudent(updatedStudent);
+
+        // Verify deletion; should be null if not found
+        Student deletedStudent = getStudent(studentId);
+        System.out.println("After deletion, retrieval: " + deletedStudent);
+
+        // Shutdown Hibernate
+        HibernateUtil.shutdown();
+    }
+
+    // Save a student and return the generated ID
+    public static int saveStudent(Student student) {
+        Transaction transaction = null;
+        Integer studentId = null;
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            transaction = session.beginTransaction();
+            studentId = (Integer) session.save(student);
+            transaction.commit();
+            System.out.println("Student created with id: " + studentId);
+        } catch (Exception ex) {
+            if (transaction != null) transaction.rollback();
+            ex.printStackTrace();
+        }
+        return studentId;
+    }
+
+    // Get a student by id
+    public static Student getStudent(int id) {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.get(Student.class, id);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return null;
+    }
+
+    // Update student record
+    public static void updateStudent(Student student) {
+        Transaction transaction = null;
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            transaction = session.beginTransaction();
+            session.update(student);
+            transaction.commit();
+            System.out.println("Student updated: " + student);
+        } catch (Exception ex) {
+            if (transaction != null) transaction.rollback();
+            ex.printStackTrace();
+        }
+    }
+
+    // Delete student record
+    public static void deleteStudent(Student student) {
+        Transaction transaction = null;
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            transaction = session.beginTransaction();
+            session.delete(student);
+            transaction.commit();
+            System.out.println("Student deleted: " + student);
+        } catch (Exception ex) {
+            if (transaction != null) transaction.rollback();
+            ex.printStackTrace();
+        }
+    }
+}
+
+
+5. Expected Console Output
+Student created with id: 1
+Retrieved: Student [id=1, name=John Doe, age=20]
+Student updated: Student [id=1, name=John Updated, age=20]
+Updated: Student [id=1, name=John Updated, age=20]
+Student deleted: Student [id=1, name=John Updated, age=20]
+After deletion, retrieval: null
+
+
